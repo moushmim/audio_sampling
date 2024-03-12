@@ -1,0 +1,98 @@
+cpp
+#include <iostream>
+#include <fstream>
+#include "portaudio.h"
+
+#define SAMPLE_RATE 58000
+#define NUM_CHANNELS 1
+#define FRAMES_PER_BUFFER 256
+#define RECORDING_TIME 4.5
+
+typedef float SAMPLE;
+
+int recordAudio(const char* fileName) {
+    PaStream *stream;
+    PaError err;
+
+    // Initialize PortAudio
+    err = Pa_Initialize();
+    if (err != paNoError) {
+        std::cerr << "PortAudio error: " << Pa_GetErrorText(err) << std::endl;
+        return 1;
+    }
+
+    // Open stream
+    err = Pa_OpenDefaultStream(&stream, NUM_CHANNELS, 0, paFloat32, SAMPLE_RATE, FRAMES_PER_BUFFER, nullptr, nullptr);
+    if (err != paNoError) {
+        std::cerr << "PortAudio error: " << Pa_GetErrorText(err) << std::endl;
+        Pa_Terminate();
+        return 1;
+    }
+
+    // Start stream
+    err = Pa_StartStream(stream);
+    if (err != paNoError) {
+        std::cerr << "PortAudio error: " << Pa_GetErrorText(err) << std::endl;
+        Pa_CloseStream(stream);
+        Pa_Terminate();
+        return 1;
+    }
+
+    // Record audio
+    std::ofstream outFile(fileName, std::ios::out | std::ios::binary);
+    int numSamples = static_cast<int>(SAMPLE_RATE * RECORDING_TIME);
+    for (int i = 0; i < numSamples; ++i) {
+        SAMPLE buffer[FRAMES_PER_BUFFER * NUM_CHANNELS];
+        err = Pa_ReadStream(stream, buffer, FRAMES_PER_BUFFER);
+        if (err != paNoError) {
+            std::cerr << "PortAudio error: " << Pa_GetErrorText(err) << std::endl;
+            break;
+        }
+        outFile.write(reinterpret_cast<const char*>(buffer), sizeof(SAMPLE) * FRAMES_PER_BUFFER * NUM_CHANNELS);
+    }
+    outFile.close();
+
+    // Stop and close stream
+    err = Pa_StopStream(stream);
+    if (err != paNoError) {
+        std::cerr << "PortAudio error: " << Pa_GetErrorText(err) << std::endl;
+    }
+    err = Pa_CloseStream(stream);
+    if (err != paNoError) {
+        std::cerr << "PortAudio error: " << Pa_GetErrorText(err) << std::endl;
+    }
+
+    // Terminate PortAudio
+    Pa_Terminate();
+
+    std::cout << "Recording finished and saved as " << fileName << std::endl;
+
+    return 0;
+}
+
+int main() {
+    const char* fileName = "recorded_sound.csv";
+    return recordAudio(fileName);
+}
+
+
+To plot the recorded sound, you can use Python with libraries like NumPy and Matplotlib:
+
+python
+import numpy as np
+import matplotlib.pyplot as plt
+
+# Load recorded sound
+recorded_sound = np.loadtxt('recorded_sound.csv', delimiter=',')
+
+# Create time axis
+time = np.linspace(0, len(recorded_sound) / SAMPLE_RATE, len(recorded_sound))
+
+# Plot recorded sound
+plt.figure(figsize=(10, 4))
+plt.plot(time, recorded_sound)
+plt.xlabel('Time (s)')
+plt.ylabel('Amplitude')
+plt.title('Recorded Sound')
+plt.grid(True)
+plt.show()
